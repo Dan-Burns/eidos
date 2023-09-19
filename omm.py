@@ -35,6 +35,7 @@ def omm_to_mda(topology,positions):
     u.add_TopologyAttr('resname', [res.name for res in top.residues()])
     u.add_TopologyAttr('resid', [res.index for res in top.residues()])
     u.add_TopologyAttr('segid', [chain.id for chain in top.chains()])
+    u.add_TopologyAttr('mass', [atom.element.mass.value_in_unit(dalton) for atom in top.atoms()])
     #TODO add mass
     u.atoms.positions = np.asarray([np.asarray(position._value) for position in positions.in_units_of(angstroms)])
     bonds = []
@@ -152,4 +153,14 @@ class PositionModifier():
         sel2 = self.u.select_atoms(sel2)
         
         return distance_array(sel1.atoms, sel2.atoms,).min()
+
+
+def get_force_index(force_name, system):
+    for i, force in enumerate(system.getForces()):
+        if force.getName() == force_name:
+            return i
+
+def remove_force_by_name(force_name, system):
+    force_index = get_force_index(force_name, system)
+    system.removeForce(force_index)
         
