@@ -5,8 +5,9 @@ from openmm.vec3 import Vec3
 from openmm.unit import *
 import MDAnalysis as mda
 from MDAnalysis.transformations.rotate import rotateby
-import nglview as nglview
+import nglview as nv
 import numpy as np
+from pdbfixer import PDBFixer
 
 
 
@@ -44,8 +45,8 @@ def omm_to_mda(topology,positions):
     u.add_TopologyAttr('bonds', bonds)
     u.add_TopologyAttr("chainID")
     for seg in u.segments:
-        sel = u.select_atoms(f'segid {seg}')
-        sel.atoms.chainIDs = f'{seg}'
+        sel = u.select_atoms(f'segid {seg.segid}')
+        sel.atoms.chainIDs = f'{seg.segid}'
  
     return u
 
@@ -163,4 +164,50 @@ def get_force_index(force_name, system):
 def remove_force_by_name(force_name, system):
     force_index = get_force_index(force_name, system)
     system.removeForce(force_index)
-        
+
+def slow_heat(simulation, start_temp=1, end_temp=293, 
+              nsteps=10e5):
+    '''
+    Heat simulation in 1 kelvin intervals from start_temp to end_temp
+
+    Parameters
+    ----------
+    simulation : openmm.app.Simulation
+
+    start_temp : Temperature to begin heating in kelvin.
+
+    end_temp : Temperature to stop heating in kelvin.
+
+    nsteps : Number of steps over which the heating will occur. 
+            Number of steps per kelvin is nsteps / (end_temp - start_temp)
+
+    Returns
+    -------
+    Simulation with integrator temperature set to end_temp.
+    '''
+    steps_per_interval = int(np.floor(nsteps/(end_temp - start_temp))) 
+    for temp in range(start_temp, end_temp+1):
+        #TODO make this print interval smart
+        if temp % 25 == 0:
+            print(f'Current Temperature : {temp}')
+        simulation.integrator.setTemperature(temp)
+        simulation.step(steps_per_interval)
+
+#TODO add pdb2pqr
+
+def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=True, replace_nonstandard_resis=True):
+    '''
+    PDBFixer convenience function 
+    
+    '''
+    # https://htmlpreview.github.io/?https://github.com/openmm/pdbfixer/blob/master/Manual.html
+    fixer = PDBFixer(filename=input_pdb)
+    fixer.findMissingResidues()
+    fixer.findNonstandardResidues()
+    if replace_nonstandard_resis:
+        fixer.replaceNonstandardResidues()
+    fixer.removeHeterogens(keep_water)
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens(pH)
+    PDBFile.writeFile(fixer.topology, fixer.positions, open(output_pdb, 'w'))
