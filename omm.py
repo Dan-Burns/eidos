@@ -10,7 +10,6 @@ import numpy as np
 from pdbfixer import PDBFixer
 
 
-
 def omm_to_mda(topology,positions):
     '''
     Provide an OpenMM topology and positions and return an MDAnalysis Universe.
