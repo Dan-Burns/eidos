@@ -210,3 +210,76 @@ def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=True, replace_nonstandard_
     fixer.addMissingAtoms()
     fixer.addMissingHydrogens(pH)
     PDBFile.writeFile(fixer.topology, fixer.positions, open(output_pdb, 'w'))
+
+
+class OMMSetup:
+    '''
+    ################# IN PROGRESS #############################
+    Class to piece together an openmm simulation object
+    '''
+
+    def __init__(self, structures,):
+        self.structures = structures
+        self.structures_to_parameterize = structures_to_parameterize
+        self.nonbonded_cutoff = nonbonded_cutoff
+        self.integrator = integrator
+        self.forcefields = forcefields
+        self.temperature = temperature
+        self.pressure = pressure
+
+    def model(self):
+        # modeler components
+        pdb_file = protein
+        pdb = PDBFile(pdb_file)
+        pdb_metal = PDBFile(metal)
+        pdb_akg = PDBFile(akg_pdb)
+        modeller = Modeller(pdb.topology, pdb.positions)
+        modeller.add(pdb_metal.topology, pdb_metal.positions)
+        modeller.add(pdb_akg.topology, pdb_akg.positions)
+        
+
+    def parameterize(self.):
+        molecule = Molecule()
+        akg_molecule = molecule.from_file(akg_mol)
+        akg_molecule.assign_partial_charges('am1bcc')
+        smir = SMIRNOFFTemplateGenerator(molecules=akg_molecule)
+        forcefield = ForceField('amber14-all.xml', '3i3q/ions_1FE_type.xml')
+        forcefield.registerTemplateGenerator(smir.generator)
+        modeller.addSolvent(forcefield, padding=2*nanometer,
+                            ionicStrength=0.1*molar, model='tip3p',
+                            boxShape='dodecahedron')
+    
+    def system(self):
+        # create system object
+        system = forcefield.createSystem(modeller.topology, nonbondedMethod=PME,nonbondedCutoff=1*nanometer, 
+                                 constraints=HBonds)
+        # define temperature and pressure
+        # 20C
+        temperature = 293 * kelvin
+        pressure = 1 * bar
+        # Add pressure control
+        system.addForce(MonteCarloBarostat(pressure, temperature))
+        # create integrator object
+
+    def simulation(self):
+        integrator = LangevinMiddleIntegrator(temperature, 1/picosecond, 2*femtoseconds)
+        # create simulation object
+        simulation = Simulation(modeller.topology, system, integrator)
+        simulation.context.setPositions(modeller.positions)
+
+
+    def gmx(self):
+        positions = simulation.context.getState(getPositions=True).getPositions()
+        os.makedirs(f'3i3q/openmm_{metal}/')
+        with open(f'3i3q/openmm_{metal}/3i3q_system_{metal}_restraint.xml', 'w') as outfile:
+            outfile.write(XmlSerializer.serialize(system))
+        with open(f'3i3q/openmm_{metal}/3i3q_minimized.pdb', 'w') as f:
+            PDBFile.writeFile(simulation.topology, positions, f)
+            
+        ##### Save a gromacs topology for future trjconv use - Use a no-constraints version of system to avoid parmed error
+        parmed_system = forcefield.createSystem(simulation.topology, nonbondedMethod=PME,nonbondedCutoff=1*nanometer, rigidWater=False)
+        pmd_structure = parmed.openmm.load_topology(simulation.topology, system=parmed_system, xyz=positions)
+
+        #os.makedirs(f'3i3q/gromacs/')
+        pmd_structure.save(f"3i3q/gromacs/3i3q_{metal}_SYSTEM.top", overwrite=True)
+        pmd_structure.save(f"3i3q/gromacs/3i3q_{metal}_SYSTEM.gro", overwrite=True)

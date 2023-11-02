@@ -41,8 +41,8 @@ def get_sequence(u,print_seq=True,by_chain=False):
         else:
             return resis
         
-def process_traj(structure: mda.Universe, trajectory,
-                 remove_sel='not (resname HOH or resname SOL or resname Na or resname Cl or resname WAT)',
+def process_traj(structure, trajectory,
+                 sel='not (resname HOH or resname SOL or resname Na or resname Cl or resname WAT)',
                  reduced_traj_output = 'reduced_traj.xtc', reduced_structure='reduced_structure.pdb',
                  align=True, align_sel='name CA',
                  output_file='aligned_traj.xtc'):
@@ -76,12 +76,12 @@ def process_traj(structure: mda.Universe, trajectory,
                     Path to output processed trajectory.  If "None", assign the in-memory
                     output universe to a variable.
     '''
-    if remove_sel is not None:
+    if sel is not None:
         u = mda.Universe(structure, trajectory)
-        sel = u.select_atoms(remove_sel)
+        sel = u.select_atoms(sel)
         sel.write(reduced_structure)
 
-        write_trajectory(u, selection=remove_sel, output_file=reduced_traj_output, start=0, stop=-1, step=1)
+        write_trajectory(u, selection=sel, output_file=reduced_traj_output, start=0, stop=-1, step=1)
 
         reduced_u = mda.Universe(reduced_structure, reduced_traj_output)
         ref = mda.Universe(reduced_structure)
