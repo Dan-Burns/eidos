@@ -238,7 +238,7 @@ class OMMSetup:
         modeller.add(pdb_akg.topology, pdb_akg.positions)
         
 
-    def parameterize(self.):
+    def parameterize(self):
         molecule = Molecule()
         akg_molecule = molecule.from_file(akg_mol)
         akg_molecule.assign_partial_charges('am1bcc')
