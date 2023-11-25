@@ -19,7 +19,7 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent'):
     sample_origin: string 
         options are
         'all' : function is evaluated for origin time (t) of every frame (or row) in angles
-        'independent' : function is evaluted for t = 0, tau, ...., ((M/tau)-1)tau
+        'independent' : function is evaluted for frames (or rows) equal to 0, tau, ...., ((M/tau)-1)tau
         #TODO offer intermediate origins
     '''
     
@@ -38,7 +38,7 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent'):
     else:
         start=1
     # for each time lag starting from "step" frame lags to the max number of lags in "step" size
-    for i, tau in enumerate(range(start,max_tau,step)):
+    for i, tau in enumerate(range(start,max_tau+1,step)):
         # make an array that will contain a number of rows equal to the length of trajectory minus the time lag
         # because the final data point will be tau frames back from the final frame
         # eg 10 total rows and a tau of 2, there will be 8 rows to average because the final data point is cos(row 8 - row 10)
@@ -59,3 +59,13 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent'):
         # record them on the row of ACF corresponding to this iterations tau value
         ACF[i,:] = diffs.mean(axis=0)
     return ACF
+
+def get_average_angle(angles):
+    '''
+                      sum_i_from_1_to_N sin(a[i])
+    a = arctangent ---------------------------
+                      sum_i_from_1_to_N cos(a[i])
+    '''
+    avg_angle = np.arctan(np.sin(angles.sum(axis=0)/np.cos(angles).sum(axis=0))
+
+    return avg_angle

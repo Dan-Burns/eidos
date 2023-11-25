@@ -1,91 +1,3 @@
-import rdkit
-from rdkit import Chem
-from rdkit.Chem import Bond
-import mendeleev as mv
-import parmed
-
-class MolFromPDB():
-    '''
-    UNTESTED 
-
-    Take in a pdb and make edits so a resulting .mol file
-    will have charges and bond types specified.  This is needed
-    if you are going to use openmmforcefields to parameterize a
-    small molecule.
-    TODO allow for smiles input and manipulation as well
-
-    pdb : str
-        Path to pdb file.  The pdb should have the correct protonation state.
-
-    
-    '''
-
-    # parmed df makes it easy to find the atom name from rdkits GetIDX
-
-    def __init__(self, pdb, removeHs=False ):
-        self.mol = Chem.MolFromPDBFile(pdb,removeHs=removeHs)
-
-
-    def mol_with_atom_index(self):
-        #TODO display large and readable - looks incomprehensible as is
-        for atom in self.mol.GetAtoms():
-            atom.SetAtomMapNum(atom.GetIdx())
-        return self.mol
-    
-    def set_bond_type(self, idx1, idx2, bondtype):
-        '''
-        Change existing bond type to bondtype
-
-        Example
-        -------
-        double_bonds = [("O2B", "C2B"), ("O9", "C9"), ("O'1", "P7'"), ("O'L", "P7B")]
-
-        for pair in double_bonds:
-            indices = []
-            for at in mol.mol.GetAtoms():
-                name = lig_df.iloc[at.GetIdx()]['name'] # lig_df is parmed structure to_dataframe()
-                if name in pair:
-                    indices.append(at.GetIdx())
-            print(f'Setting {indices} to double bonded.')
-            mol.set_bond_type(indices[0], indices[1], 'double')
-        '''
-        bondtypes = {'single':Chem.rdchem.BondType.SINGLE,
-                     'double':Chem.rdchem.BondType.DOUBLE,
-                     'triple':Chem.rdchem.BondType.TRIPLE}
-
-
-        for bond in self.mol.GetBonds():
-            if bond.GetEndAtomIdx() in {idx1, idx2} and bond.GetBeginAtomIdx() in {idx1, idx2}:
-                bond.SetBondType(bondtypes[bondtype])
-
-    def set_charge(self, idxs, charge):
-        '''
-        
-        Example
-        -------
-        negative_charges = ["O8'", "O9'", "O8B", "O9B"]
-
-        indices = []
-        for atom in negative_charges:
-            for at in mol.mol.GetAtoms():
-                name = lig_df.iloc[at.GetIdx()]['name'] # lig_df is parmed structure to_dataframe()
-                if name == atom:
-                    indices.append(at.GetIdx())
-                    print(f'Setting {at.GetIdx()} to charge of -1.')
-        mol.set_charge(indices, -1)
-        '''
-
-        for at in self.mol.GetAtoms():
-            if at.GetIdx() in idxs: #and mv.element(at.GetAtomicNum()).name == 'Oxygen':
-                at.SetFormalCharge(charge)
-
-    def show_mol_file(self):
-        print(Chem.MolToMolBlock(self.mol))
-
-    def save_mol_file(self, output):
-        if output.split('.')[-1] != 'mol':
-            output = f'{output}.mol'
-        Chem.MolToMolFile(self.mol,output)
 
 
 
@@ -93,6 +5,13 @@ from openff.toolkit.topology import *
 import openmmtools as omt
 from openmmtools.integrators import *
 from openforcefields import *
+
+from openmm.app import *
+from openmm import *
+from openmm.unit import *
+from openmm import app
+from openmm import unit
+
 
 import MDAnalysis as mda
 from MDAnalysis.analysis.distances import dist
@@ -191,18 +110,8 @@ def minimize_morph(structure, reference, output):
         PDBFile.writeFile(modeller.topology, state.positions, f)
 
 
-from openmm.app import *
-from openmm import *
-from openmm.unit import *
-from openmm import app
-from openmm import unit
 
-
-
-            
-
-
-#### Don't Touch This file - Seq2Ensemble imports this
+        
 
 def minimize_sidechains(output, pdb_file, temperature=300.00):
 
@@ -290,3 +199,89 @@ def minimize_sidechains(output, pdb_file, temperature=300.00):
     simulation.minimizeEnergy()
     with open(output, 'w') as f:
         PDBFile.writeFile(simulation.topology, simulation.context.getState(getPositions=True).getPositions(), f)
+
+############################### Sali Lab Modeller Functions #############################################################3
+
+from Bio import pairwise2
+import Bio
+from Bio import SeqIO
+from modeller import *
+import re
+from modeller.automodel import *
+# Salilab Modeller functions for missing loops
+
+def make_aln_file(pdb_path, output):
+    '''
+    pdb_path : string 
+        Path to pdb file.
+
+    output : string
+        File path ending in ".seq" extension.
+    '''
+    # https://salilab.org/modeller/wiki/Missing_residues
+
+    code = re.split('.|/',pdb_path)[-2]
+    e = Environ()
+    m = Model(e, file=pdb_path)
+    aln = Alignment(e)
+    aln.append_model(m, align_codes=code)
+    aln.write(file=output)
+
+def write_modeller_alignment(seqa, seqb, output, seqa_header = ['seqa','None'], seqb_header = ['seqb','None']):
+    with open(output, 'w') as f:
+        f.write(f">P1;{seqa_header[0]}\n{seqa_header[1]}\n{seqa}*\n")
+        f.write(f">P1;{seqb_header[0]}\n{seqb_header[1]}\n{seqb}*\n")
+
+def get_modeller_alignment(pdb_path, seq_file, output):
+    '''
+    seq_file : string   
+        Path to file from make_aln_file.
+    '''
+    code = re.split('.|/',pdb_path)[-2]
+
+    for record in SeqIO.parse(pdb_path, "pdb-seqres"):
+        print("Record id %s, chain %s" % (record.id, record.annotations["chain"]))
+        print(record.dbxrefs)
+    
+    # get full seq including missing residues
+    # https://biopython.org/wiki/SeqIO
+    # https://salilab.org/modeller/8v2/manual/node176.html (pir format)
+    for data in SeqIO.parse(seq_file, "pir"):
+        print(data)
+        if type(data) == Bio.SeqRecord.SeqRecord:
+            pdb_seq = data
+    # https://biopython.org/docs/1.75/api/Bio.pairwise2.html
+    ## USING localmx here
+    alignments = pairwise2.align.localmx(pdb_seq.seq, record.seq, 1, 0)
+    seqa, seqb = Seq(alignments[0].seqA), Seq(alignments[0].seqB)
+    # PIR format 
+    # First line is "">P1;pdb"
+    # fields for second line
+    # 1 specification whether 3d structure is available and method used to obtain "structure" is enough
+    # 2 PDB code or filename (if no path is provided modeller searches IOData.atom_files_directory)
+    # 3-6 Residue and chain identifiers first(fields 3-4) last (fields 5-6)
+    # 7 optional protein name
+    # 8 optional source
+    # 9 optional resolution
+    # 10 optional R-factor
+    write_modeller_alignment(seqa, seqb, output, seqa_header = [code,f'structureX:{code}:FIRST:A:LAST:A::::'], 
+                         seqb_header = [f'{code}_fill', 'sequence:::::::::'])
+    
+
+def fill_loops(structure_dir, ali_file, pdb_code):
+    log.verbose()
+    env = Environ()
+
+    # directories for input atom files
+    env.io.atom_files_directory = ['.', structure_dir]
+
+    a = LoopModel(env, alnfile = ali_file,
+                knowns = pdb_code, sequence = f'{pdb_code}_fill')
+    a.starting_model= 1
+    a.ending_model  = 1
+
+    a.loop.starting_model = 1
+    a.loop.ending_model   = 2
+    a.loop.md_level       = refine.fast
+
+    a.make()

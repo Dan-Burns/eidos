@@ -185,7 +185,7 @@ def slow_heat(simulation, start_temp=1, end_temp=293,
     Simulation with integrator temperature set to end_temp.
     '''
     steps_per_interval = int(np.floor(nsteps/(end_temp - start_temp))) 
-    for temp in range(start_temp, end_temp+1):
+    for temp in range(start_temp, int(end_temp+1)):
         #TODO make this print interval smart
         if temp % 25 == 0:
             print(f'Current Temperature : {temp}')
