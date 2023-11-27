@@ -135,6 +135,8 @@ class PositionModifier():
         self.u = u
 
     def view(self, axes=True):
+        #https://nglviewer.org/ngl/api/manual/selection-language.html
+        #https://nglviewer.org/ngl/api/manual/index.html
         # axes just stretches out a single axis as you move the pieces apart
         view = nv.show_mdanalysis(self.u)
         if axes:
