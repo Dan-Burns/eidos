@@ -20,7 +20,7 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent', type
         options are
         'all' : function is evaluated for origin time (t) of every frame (or row) in angles
         'independent' : function is evaluted for frames (or rows) equal to 0, tau, ...., ((M/tau)-1)tau
-        #TODO intermediate origins
+        #TODO offer intermediate origins
     type : string
         options are
         'angle' : inputs are expected to be angles (degrees). cos(angles[sample_origin] - angles[sample_origin+tau]) is computed.
@@ -50,22 +50,28 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent', type
         if sample_origin == 'independent':
             n_samples = int((n_rows/tau)-1)
             diffs = np.zeros((n_samples, angles.shape[1]))
+            #TODO diffs = np.zeros((angles.shape[1]))
             coef = tau
         else:
-            n_samples = int(n_rows-tau)
-            diffs = np.zeros((n_samples, angles.shape[1]))
+            n_samples = int(n_rows-tau) # check that final output doesn't have empty last row (-1 here also)
+            diffs = np.zeros((n_samples, angles.shape[1])) 
+            #TODO diffs = np.zeros((angles.shape[1]))
             coef = 1
         # loop over n_samples origins 
+        # TODO - just keep running sum and divide by n_samples to save memory
         for record, t in enumerate(range(n_samples)):
             sample_origin = t*coef
             # get the cos of the difference between angle at time t and t+tau
             if type == 'angle':
                 diffs[record,:] = np.cos(angles[sample_origin] - angles[sample_origin+tau])
             elif type == 'vector':
-                diffs[record,:] = np.dot(angles[sample_origin],angles[sample_origin+tau]) 
+                # row wise dot product
+                diffs[record,:] = np.sum(angles[sample_origin]*angles[sample_origin+tau], axis=1)
+                #TODO diffs += np.sum(angles[sample_origin]*angles[sample_origin+tau], axis=1)
         # after they've all been recorded, get the means for each angle and
         # record them on the row of ACF corresponding to this iterations tau value
         ACF[i,:] = diffs.mean(axis=0)
+        #TODO ACF[i,:] = diffs/n_samples
     return ACF
 
 def get_average_angle(angles):
@@ -79,12 +85,15 @@ def get_average_angle(angles):
     return avg_angle
 
 def scale_to_unit(vector):
-    
-    return vector/np.linalg.norm(vector)
+    '''
+    assuming 2d input shape
+    n x 3 (xyz)
+    '''
+    return vector/np.linalg.norm(vector,axis=1,keepdims=True)
 
 def get_bond_vector_cross_products(ag,atoms=('H','N','CA')):
     '''
-    ag : mda.Univsere AtomGroup containing the atoms from the residues of interest.
+    ag : mda.Universe AtomGroup containing the atoms from the residues of interest.
     '''
     cross_products = []
     residues = ag.residues
