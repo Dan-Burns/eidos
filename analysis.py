@@ -1,6 +1,6 @@
 import numpy as np
 
-def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent'):
+def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent', type='angle'):
     '''
     Compute the autocorrelation function avg(cos[theta(t)-theta(tau+t)])tau
     see: van der Spoel, D. & Berendsen, H. J. Molecular dynamics simulations of Leu-enkephalin in water and DMSO. 
@@ -16,11 +16,16 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent'):
         The maximum time lag (in frames) to evaluate the function to.
     step : int
         The tau interval.  If step = 2 then the correlation function is evaluated at tau = 0, 2, 4, 6, 8 .....
-    sample_origin: string 
+    sample_origin : string 
         options are
         'all' : function is evaluated for origin time (t) of every frame (or row) in angles
         'independent' : function is evaluted for frames (or rows) equal to 0, tau, ...., ((M/tau)-1)tau
-        #TODO offer intermediate origins
+        #TODO intermediate origins
+    type : string
+        options are
+        'angle' : inputs are expected to be angles (degrees). cos(angles[sample_origin] - angles[sample_origin+tau]) is computed.
+        'vector' : inputs are expected to be vectors (taken from the cross product of two bond orientation vectors)
+                    dot(vector[sample_origin], vector[sample_origin+tau]) is computed
     '''
     
     angles = np.radians(angles)
@@ -54,7 +59,10 @@ def compute_angle_ACF(angles, max_tau, step=1, sample_origin='independent'):
         for record, t in enumerate(range(n_samples)):
             sample_origin = t*coef
             # get the cos of the difference between angle at time t and t+tau
-            diffs[record,:] = np.cos(angles[sample_origin] - angles[sample_origin+tau])
+            if type == 'angle':
+                diffs[record,:] = np.cos(angles[sample_origin] - angles[sample_origin+tau])
+            elif type == 'vector':
+                diffs[record,:] = np.dot(angles[sample_origin],angles[sample_origin+tau]) 
         # after they've all been recorded, get the means for each angle and
         # record them on the row of ACF corresponding to this iterations tau value
         ACF[i,:] = diffs.mean(axis=0)
@@ -66,6 +74,27 @@ def get_average_angle(angles):
     a = arctangent ---------------------------
                       sum_i_from_1_to_N cos(a[i])
     '''
-    avg_angle = np.arctan(np.sin(angles.sum(axis=0)/np.cos(angles).sum(axis=0))
+    avg_angle = np.arctan(np.sin(angles.sum(axis=0)/np.cos(angles).sum(axis=0)))
 
     return avg_angle
+
+def scale_to_unit(vector):
+    
+    return vector/np.linalg.norm(vector)
+
+def get_bond_vector_cross_products(ag,atoms=('H','N','CA')):
+    '''
+    ag : mda.Univsere AtomGroup containing the atoms from the residues of interest.
+    '''
+    cross_products = []
+    residues = ag.residues
+    # get the row indices corresponding to the atoms
+    i = np.where(residues.atoms.names == atoms[0])[0]
+    j = np.where(residues.atoms.names == atoms[1])[0]
+    k = np.where(residues.atoms.names == atoms[2])[0]
+    # get the position vectors for the atoms
+    i,j,k = residues.atoms.positions[[i,j,k]].squeeze()
+    # cross product
+    n = scale_to_unit(np.cross(i-j, j-k))
+    cross_products.append(n)
+    return cross_products
