@@ -87,3 +87,46 @@ def mix_color(colorRGBA1, colorRGBA2):
 # b_grad = get_color_gradient('#02a8f800','#02a8f8ff',100, return_rgb=True, alpha=True)
 # rgb = get_color(r_grad[50],b_grad[50])
 # rgb_to_hex(get_color(r_grad[50],b_grad[50]))
+
+def convert_rms_to_rgb(rmsf, color='red'):
+    '''
+    Take a normalized rmsf value and create a color code along a spectrum of white to red for the corresponding 
+    residue to depict the regions of most motion.
+    '''
+    adjustment = 255 - (int(rmsf*255))
+
+    if color == 'blue':
+        r = str(hex(adjustment))[2:]
+        if len(r) == 1:
+            r='0'+r
+        g = str(hex(adjustment))[2:]
+        if len(g) == 1:
+            g='0'+g
+        b = str(hex(255))[2:]
+    elif color == 'red':
+        r = str(hex(255))[2:]
+        g = str(hex(adjustment))[2:]
+        if len(g) == 1:
+            g='0'+g
+        b = str(hex(adjustment))[2:]
+        if len(b) == 1:
+            b='0'+b
+    elif color == 'green':
+        # 0, 1, 0
+        # forest green 0.2, 0.6, 0.2
+        r = str(hex(int((0.2*255)+(adjustment*0.8))))[2:]
+        if len(r) == 1:
+            r='0'+r
+        g = str(hex(int((255*0.6)+adjustment*0.4)))[2:]
+        b = str(hex(int((0.2*255)+(adjustment*0.8))))[2:]
+        if len(b) == 1:
+            b='0'+b
+    elif color == 'orange':
+        # 1, 0.5, 0
+        r = str(hex(255))[2:] 
+        g = str(hex(int(127+adjustment/2)))[2:]
+        b = str(hex(adjustment))[2:]
+        if len(b) == 1:
+            b='0'+b
+
+    return '0x'+ r+g+b
