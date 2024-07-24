@@ -42,7 +42,7 @@ def get_sequence(u,print_seq=True,by_chain=False):
             return resis
         
 def process_traj(structure, trajectory,
-                 sel='not (resname HOH or resname SOL or resname Na or resname Cl or resname WAT)',
+                 sel='not (resname HOH or resname SOL or resname Na or resname Cl or resname WAT or resname Na+ or resname Cl-)',
                  reduced_traj_output = 'reduced_traj.xtc', reduced_structure='reduced_structure.pdb',
                  align=True, align_sel='name CA',
                  output_file='aligned_traj.xtc'):
@@ -118,3 +118,8 @@ def process_traj(structure, trajectory,
             # no need to return the u if it is updated in place
             
 
+# todo Class for simulation run/continuation/processing
+# use a json file for everything that updates with new current run # etc.
+# include checks to make sure naming doesn't overlap - don't 
+# require any specifications of run numbers etc
+# handle pre heating start.

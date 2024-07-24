@@ -1,6 +1,6 @@
 import openmm
-from openmm import System
-from openmm.app import PDBFile, Modeller, Simulation
+from openmm import *
+from openmm.app import *
 from openmm.vec3 import Vec3
 from openmm.unit import *
 import MDAnalysis as mda
@@ -8,6 +8,11 @@ from MDAnalysis.transformations.rotate import rotateby
 import nglview as nv
 import numpy as np
 from pdbfixer import PDBFixer
+import os
+import subprocess
+import shutil
+import parmed
+import json
 
 
 def omm_to_mda(topology,positions):
@@ -169,6 +174,8 @@ def remove_force_by_name(force_name, system):
 def slow_heat(simulation, start_temp=1, end_temp=293, 
               nsteps=10e5):
     '''
+    todo : accept Quantity class from openmm unit 
+    todo : display clocktime
     Heat simulation in 1 kelvin intervals from start_temp to end_temp
 
     Parameters
@@ -213,75 +220,190 @@ def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=True, replace_nonstandard_
     fixer.addMissingHydrogens(pH)
     PDBFile.writeFile(fixer.topology, fixer.positions, open(output_pdb, 'w'))
 
+def get_sim_info(simulation):
+    '''
+    Returns a dictionary of basic simulation information.
+    '''
+    top = simulation.topology
+    sys = simulation.system
+    integrator = simulation.integrator
+    forces = simulation.getForces()
+    info = {}
+    disulfide_bond_list = []
+    # get disulfide bonds
+    for bond in top.bonds():
+        if bond.atom1.name == 'SG' and bond.atom2.name == 'SG':
+            disulfide_bond_list.append(bond)
+    info['disulfide_bonds'] = disulfide_bond_list
+    info['num_atoms'] = top.getNumAtoms()
+    info['num_chains'] = top.getNumChains()
+    info['num_residues'] = top.getNumResidues()
+    info['residue_names'] = set([res.name for res in top.residues()])
+    info['current_step'] = simulation.currentStep
+    info['integrator'] = integrator.__class__
+    info['forces'] = forces
+    for force in forces:
+        if force.getName() == 'NonbondedForce':
+            info['nonbonded_cutoff'] = force.getCutoffDistance()
+    info['periodic_boundaries'] = sys.usesPeriodicBoundaryConditions()
+    if sys.usesPeriodicBoundaryConditions() == True:
+        info['periodic_box_vectors'] = sys.getDefaultPeriodicBoxVectors()
+    info['unit_cell_dimensions'] = top.getUnitCellDimensions()
+    info['step_size'] = integrator.getStepSize()
+    info['friction'] = integrator.getFriction()
+    info['temperature'] = integrator.getTemperature()
+    info['seed'] = integrator.getRandomNumberSeed()
+    
+    return info
+
 
 class OMMSetup:
     '''
     ################# IN PROGRESS #############################
     Class to piece together an openmm simulation object
+
+    todo: write json file with simulation parameters that can be used to 
+    load the integrator and so on for restarts
     '''
 
-    def __init__(self, structures,):
+    def __init__(self, structures,
+                 structures_to_parameterize=None,
+                 nonbonded_cutoff=1*nanometer,
+                 integrator_type=LangevinMiddleIntegrator,
+                 forcefields=['amber14-all.xml', 'amber14/tip3pfb.xml'],
+                 temperature=None,
+                 pressure=1*bar,
+                 box_shape='cube',
+                 padding=0.6*nanometer,
+                 ):
         self.structures = structures
         self.structures_to_parameterize = structures_to_parameterize
         self.nonbonded_cutoff = nonbonded_cutoff
-        self.integrator = integrator
+        self.integrator_type = integrator_type
         self.forcefields = forcefields
         self.temperature = temperature
         self.pressure = pressure
+        self.box_shape = box_shape
+        self.padding = padding
+        # add padding or box vectors, ions, concentration, water model
 
+    '''
+    structures : dict
+        dict of keys of user supplied names and values of paths to prepared PDB 
+        files for each component of the system.
+        Example
+        -------
+        structures = ['lysozyme':'./253L.pdb']
+
+    structures_to_parameterize : dictionary
+        If structures contains small molecules or chemicals not available the specified
+        forcefields, then supply a dictionary with names matching those provided in 
+        "structures" and a value corresponding to the path to a .mol file.
+
+    '''
     def model(self):
         # modeler components
-        pdb_file = protein
+        pdb_file = self.structures[0]
         pdb = PDBFile(pdb_file)
-        pdb_metal = PDBFile(metal)
-        pdb_akg = PDBFile(akg_pdb)
         modeller = Modeller(pdb.topology, pdb.positions)
-        modeller.add(pdb_metal.topology, pdb_metal.positions)
-        modeller.add(pdb_akg.topology, pdb_akg.positions)
-        
+        if len(self.structures) > 1:
+            for structure in self.structures[1:]:
+                pdb_file = structure
+                pdb = PDBFile(pdb_file)
+                modeller.add(pdb.topology, pdb.positions)
+        self.modeller = modeller
+            
 
     def parameterize(self):
-        molecule = Molecule()
-        akg_molecule = molecule.from_file(akg_mol)
-        akg_molecule.assign_partial_charges('am1bcc')
-        smir = SMIRNOFFTemplateGenerator(molecules=akg_molecule)
-        forcefield = ForceField('amber14-all.xml', '3i3q/ions_1FE_type.xml')
-        forcefield.registerTemplateGenerator(smir.generator)
-        modeller.addSolvent(forcefield, padding=2*nanometer,
+        self.forcefield = ForceField(*self.forcefields)
+        if self.structures_to_parameterize is not None:
+            molecules = []
+            for key, val in self.structures_to_parameterize.items():
+                molecule = molecule.from_file(val)
+                molecule.assign_partial_charges('am1bcc')
+                molecules.append(molecule)
+            smir = SMIRNOFFTemplateGenerator(molecules=molecules) # register a list?
+            self.forcefield.registerTemplateGenerator(smir.generator)
+        self.modeller.addSolvent(self.forcefield, padding=self.padding,
                             ionicStrength=0.1*molar, model='tip3p',
-                            boxShape='dodecahedron')
+                            boxShape=self.box_shape)
     
-    def system(self):
+    def make_system(self):
         # create system object
-        system = forcefield.createSystem(modeller.topology, nonbondedMethod=PME,nonbondedCutoff=1*nanometer, 
-                                 constraints=HBonds)
-        # define temperature and pressure
-        # 20C
-        temperature = 293 * kelvin
-        pressure = 1 * bar
+        system = self.forcefield.createSystem(self.modeller.topology, 
+                                         nonbondedMethod=PME,
+                                         nonbondedCutoff=self.nonbonded_cutoff, 
+                                        constraints=HBonds)
         # Add pressure control
-        system.addForce(MonteCarloBarostat(pressure, temperature))
-        # create integrator object
+        system.addForce(MonteCarloBarostat(self.pressure, self.temperature))
+        self.system=system
 
-    def simulation(self):
-        integrator = LangevinMiddleIntegrator(temperature, 1/picosecond, 2*femtoseconds)
+    def make_simulation(self):
+        integrator = self.integrator_type(self.temperature, 1/picosecond, 2*femtoseconds) # add options to init
         # create simulation object
-        simulation = Simulation(modeller.topology, system, integrator)
-        simulation.context.setPositions(modeller.positions)
+        simulation = Simulation(self.modeller.topology, self.system, integrator)
+        simulation.context.setPositions(self.modeller.positions)
+        simulation.minimizeEnergy()
+        self.simulation = simulation
 
 
-    def gmx(self):
-        positions = simulation.context.getState(getPositions=True).getPositions()
-        os.makedirs(f'3i3q/openmm_{metal}/')
-        with open(f'3i3q/openmm_{metal}/3i3q_system_{metal}_restraint.xml', 'w') as outfile:
-            outfile.write(XmlSerializer.serialize(system))
-        with open(f'3i3q/openmm_{metal}/3i3q_minimized.pdb', 'w') as f:
-            PDBFile.writeFile(simulation.topology, positions, f)
-            
+    def save(self, output, name='system'):
+        '''
+        save gromacs files and openmm system files
+
+        output : str
+            Path to output. Directory will be created if none exists.
+
+        name : str
+            Optional name to prefix to your saved files.
+        '''
+        # save the system and minimized structure
+        topology, positions = top_pos_from_sim(self.simulation)
+        os.makedirs(f'{output}',exist_ok=True)
+        with open(f'{output}/{name}_system.xml', 'w') as outfile:
+            outfile.write(XmlSerializer.serialize(self.system))
+        with open(f'{output}/{name}_minimized.pdb', 'w') as f:
+            PDBFile.writeFile(topology, positions, f)
+        
+        # create a .json file with the simulation's details to be used for 
+        sim_info = get_sim_info(self.simulation)
+        sim_info['forcefields'] = self.forcefields
+        sim_info['box_shape'] = self.box_shape
+        sim_info['padding'] = self.padding
+        #sim_info['PME'] = True/False
+        
+        with open('sim_info.json','w') as h:
+            json.dump(sim_info, h)
+  
         ##### Save a gromacs topology for future trjconv use - Use a no-constraints version of system to avoid parmed error
-        parmed_system = forcefield.createSystem(simulation.topology, nonbondedMethod=PME,nonbondedCutoff=1*nanometer, rigidWater=False)
-        pmd_structure = parmed.openmm.load_topology(simulation.topology, system=parmed_system, xyz=positions)
+        parmed_system = self.forcefield.createSystem(self.simulation.topology, nonbondedMethod=PME,nonbondedCutoff=1*nanometer, rigidWater=False)
+        pmd_structure = parmed.openmm.load_topology(self.simulation.topology, system=parmed_system, xyz=positions)
 
-        #os.makedirs(f'3i3q/gromacs/')
-        pmd_structure.save(f"3i3q/gromacs/3i3q_{metal}_SYSTEM.top", overwrite=True)
-        pmd_structure.save(f"3i3q/gromacs/3i3q_{metal}_SYSTEM.gro", overwrite=True)
+        os.makedirs(f'{output}/gmx/',exist_ok=True)
+        pmd_structure.save(f"{output}/gmx/{name}_gmx.top", overwrite=True)
+        pmd_structure.save(f"{output}/gmx/{name}_gmx.gro", overwrite=True)
+
+        
+        # write an energy minimization .mdp file to use with gmx grompp
+        from .files.text import em_mdp
+        with open(f'{output}/gmx/em.mdp','w') as w:
+            w.write(em_mdp)
+        # Check to see if gmx is available
+        command_path = shutil.which('gmx')
+        # write a .tpr file that can be used for things like trjconv
+        if command_path is not None:
+            command = [
+            'gmx', 'grompp',
+            '-f', f'{output}/gmx/em.mdp',
+            '-c', f"{output}/gmx/{name}_gmx.gro",
+            '-p', f"{output}/gmx/{name}_gmx.top",
+            '-o', f"{output}/gmx/{name}_em_gmx.tpr"
+            ]
+
+            # Execute the command
+            result = subprocess.run(command, capture_output=True, text=True)
+
+            # Print the output and error (if any)
+            print("Output:\n", result.stdout)
+            print("Error:\n", result.stderr)
+    

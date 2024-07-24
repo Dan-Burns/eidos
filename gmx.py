@@ -88,3 +88,142 @@ def get_plumed_distance_restraints(atom_dictionary, universe):
         distances[i]=dist
         print(f'{i}: DISTANCE ATOMS={a_id},{b_id}')
     return distances
+
+################### In progress - make function to automatically select the group to use in processing
+################### You might want to center on a ligand but output the system minus water
+################## alternatively, you could run make_ndx and save the group menu and cancel
+################# Then construct run it again and make a group from the components of interest
+################## Then you'll know ahead of time how many menus a given command will return and 
+################### use the info dictionary to provide the centering, clustering, and output groups.....
+import subprocess
+import os
+def get_gromacs_groups(gmx_folder, index_file=None, verbose=False):
+    '''
+    Uses gmx make_ndx to retrieve the indices of the different system components.
+    You can use these to automatically make selections in gmx commands that 
+    have interactive prompts.
+
+    gmx_folder : str
+        Path to the folder containing the gromacs files. The folder and files
+        are automatically produced in omm.OMMSetup.save().
+    
+    index_file : bool
+        If True, the make_ndx command will include this file and the returned 
+        groups will include the ids of any additional groups in the index file
+        that are not automatically available from the .gro file.
+
+    Returns
+    -------
+    List of tuples (group_index: group_name)
+    # TODO the info dictionary should have the something to connect the omm
+    # chains to the gromacs groups so that you can automatically produce a
+    # gromacs index file that has a group containing all of the system components
+    # you want in a reduced post-processed trajectory e.g. protein and ligand only.
+
+    
+    '''
+    try:
+        # get the .gro file
+        files = os.listdir(gmx_folder)
+        gro_file = [f'{gmx_folder}/{file}' for file in files if file.endswith('gro')][0]
+        
+        # Start the gmx command to get the available groups
+        if index_file == True:
+            index_file = [f'{gmx_folder}/{file}' for file in files if file.endswith('ndx')][0]
+            command = ['gmx', 'make_ndx', '-f', gro_file, '-n', index_file]
+        else:
+            command = ['gmx', 'make_ndx', '-f', gro_file]
+        process = subprocess.Popen(
+            command,  
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True  # Make sure to handle text mode
+        )
+        
+        try:
+            # Wait for the process to complete or timeout
+            stdout, stderr = process.communicate(timeout=.1)# do you even need 1 millisecond?
+        except subprocess.TimeoutExpired:
+            # If the process times out, kill it
+            process.kill()
+            stdout, stderr = process.communicate()
+        
+        # Print the raw output for debugging
+        if verbose:
+            print("Raw output:\n", stdout)
+        
+        # Parse the group list from the output
+        groups = []
+        for line in stdout.split('\n'):  
+            line = line.lstrip().split()
+            if len(line)>1:
+                if line[0].isdigit():
+                    group_number = line[0]
+                    group_name = line[1]
+                    groups.append((group_number, group_name))
+        
+        return groups
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        print("stdout : ", stdout)
+        print("stderr : ", stderr)
+        return []
+
+def run_trjconv(group_dict):
+    # Use pty to handle the pseudo-terminal for interactivity
+    master, slave = pty.openpty()
+    
+    # Start the trjconv process
+    process = subprocess.Popen(
+        ['gmx', 'trjconv', '-s', 'input.tpr', '-f', 'input.xtc', '-o', 'output.xtc'],
+        stdin=slave,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True  # Make sure to handle text mode
+    )
+    
+    # Close the slave end of the pty
+    os.close(slave)
+    
+    # Read the output to get the available groups
+    group_list = ""
+    while True:
+        line = os.read(master, 1024).decode('utf-8')
+        group_list += line
+        if "Select a group:" in line:
+            break
+    
+    # Print the captured group list for debugging
+    print("Available groups:\n", group_list)
+    
+    # Parse the available groups and match with the dictionary
+    group_selection = None
+    for line in group_list.split('\n'):
+        for key in group_dict:
+            if key in line:
+                group_selection = group_dict[key]
+                break
+    
+    if group_selection is not None:
+        # Send the selected group
+        os.write(master, f"{group_selection}\n".encode('utf-8'))
+    else:
+        raise ValueError("No matching group found in the output.")
+    
+    # Read the remaining output
+    stdout, stderr = process.communicate()
+    
+    # Print the output and error (if any)
+    print(stdout)
+    if stderr:
+        print("Error:", stderr)
+
+# Example group dictionary
+group_dict = {
+    "Protein": "1",
+    "Water": "2"
+}
+
+run_trjconv(group_dict)
