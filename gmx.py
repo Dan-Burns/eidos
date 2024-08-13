@@ -143,7 +143,7 @@ def get_gromacs_groups(gmx_folder, index_file=None, verbose=False):
         
         try:
             # Wait for the process to complete or timeout
-            stdout, stderr = process.communicate(timeout=.1)# do you even need 1 millisecond?
+            stdout, stderr = process.communicate(timeout=.1) # how small of a timeout?
         except subprocess.TimeoutExpired:
             # If the process times out, kill it
             process.kill()
@@ -171,6 +171,7 @@ def get_gromacs_groups(gmx_folder, index_file=None, verbose=False):
         print("stderr : ", stderr)
         return []
 
+################# use system/simulation_info.json ################
 def run_trjconv(group_dict):
     # Use pty to handle the pseudo-terminal for interactivity
     master, slave = pty.openpty()
