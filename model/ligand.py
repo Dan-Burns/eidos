@@ -1,5 +1,6 @@
 import rdkit
 from rdkit import Chem
+from rdkit.Chem import AllChem
 from rdkit.Chem import Bond
 import mendeleev as mv
 import parmed
@@ -89,3 +90,65 @@ class MolFromPDB():
         if output.split('.')[-1] != 'mol':
             output = f'{output}.mol'
         Chem.MolToMolFile(self.mol,output)
+
+def make_PET_polymer(n_units):
+    '''
+    For working with PET simulations. Construct PET polymers of n_units.
+
+    n_units : int
+        The number of Terephthalate monomers
+    
+    Returns
+    -------
+    Smiles string for PET polymer of n_units.
+    '''
+    monomer = "OC(=O)C1=CC=C(C=C1)C(=O)O"
+    l_term = "OC(=O)C1=CC=C(C=C1)C(=O)"
+    r_term = "C(=O)C1=CC=C(C=C1)C(O)=O"
+    internal = "C(=O)C1=CC=C(C=C1)C(=O)"
+    linker = "OCCO"
+    if n_units == 1:
+        return monomer
+    elif n_units == 2:
+        return l_term+linker+r_term
+    else:
+        polymer = l_term
+        for unit in range(n_units-2):
+            addition = linker+internal
+            polymer+=addition
+        polymer+=linker+r_term
+        return polymer
+    
+def remove_carboxy_hydrogens(PET_molecule):
+    '''
+    Provide a protonated RDKit Mol object of a PET molecule and 
+    remove the hydrogens on the termini so they are negatively charged.
+
+    PET_molecule : RDKit Mol object of PET
+
+    Returns
+    -------
+    RDKit Mol
+    '''
+
+    ixs = []
+    for atom in PET_molecule.GetAtoms():
+        if atom.GetAtomicNum() == 1 and ("O" in [neighbor.GetSymbol() for neighbor in atom.GetNeighbors()]):
+            ixs.append(atom.GetIdx())
+            for neighbor in atom.GetNeighbors():
+                for bond in neighbor.GetBonds():
+                    print(bond.GetIdx())
+    ixs.sort(reverse=True)
+
+    edit_mol = Chem.RWMol(PET_molecule)
+    for ix in ixs:
+        edit_mol.RemoveAtom(ix)
+
+    clean_mol = edit_mol.GetMol()
+    for atom in clean_mol.GetAtoms():
+        if (atom.GetAtomicNum() == 8) and (len([bond.GetIdx() for bond in atom.GetBonds()]))==1:
+            if "SINGLE" in [bond.GetBondType().name for bond in atom.GetBonds()]:
+                atom.SetFormalCharge(-1)
+    Chem.SanitizeMol(clean_mol)
+    clean_mol = AllChem.AddHs(clean_mol)
+    return clean_mol
