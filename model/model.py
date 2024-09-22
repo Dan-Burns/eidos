@@ -1,6 +1,3 @@
-
-
-
 from openff.toolkit.topology import *
 import openmmtools as omt
 from openmmtools.integrators import *
@@ -202,9 +199,8 @@ def minimize_sidechains(output, pdb_file, temperature=300.00):
 
 ############################### Sali Lab Modeller Functions #############################################################3
 
-from Bio import pairwise2
+from Bio import pairwise2, SeqIO
 import Bio
-from Bio import SeqIO
 from modeller import *
 import re
 from modeller.automodel import *
@@ -220,7 +216,7 @@ def make_aln_file(pdb_path, output):
     '''
     # https://salilab.org/modeller/wiki/Missing_residues
 
-    code = re.split('.|/',pdb_path)[-2]
+    code = re.split('\.|/',pdb_path)[-2]
     e = Environ()
     m = Model(e, file=pdb_path)
     aln = Alignment(e)
@@ -237,15 +233,15 @@ def get_modeller_alignment(pdb_path, seq_file, output):
     seq_file : string   
         Path to file from make_aln_file.
     '''
-    code = re.split('.|/',pdb_path)[-2]
+    code = re.split('\.|/',pdb_path)[-2]
 
     for record in SeqIO.parse(pdb_path, "pdb-seqres"):
         print("Record id %s, chain %s" % (record.id, record.annotations["chain"]))
         print(record.dbxrefs)
     
-    # get full seq including missing residues
-    # https://biopython.org/wiki/SeqIO
-    # https://salilab.org/modeller/8v2/manual/node176.html (pir format)
+        # get full seq including missing residues
+        # https://biopython.org/wiki/SeqIO
+        # https://salilab.org/modeller/8v2/manual/node176.html (pir format)
     for data in SeqIO.parse(seq_file, "pir"):
         print(data)
         if type(data) == Bio.SeqRecord.SeqRecord:
@@ -253,7 +249,7 @@ def get_modeller_alignment(pdb_path, seq_file, output):
     # https://biopython.org/docs/1.75/api/Bio.pairwise2.html
     ## USING localmx here
     alignments = pairwise2.align.localmx(pdb_seq.seq, record.seq, 1, 0)
-    seqa, seqb = Seq(alignments[0].seqA), Seq(alignments[0].seqB)
+    seqa, seqb = alignments[0].seqA, alignments[0].seqB
     # PIR format 
     # First line is "">P1;pdb"
     # fields for second line
@@ -265,10 +261,16 @@ def get_modeller_alignment(pdb_path, seq_file, output):
     # 9 optional resolution
     # 10 optional R-factor
     write_modeller_alignment(seqa, seqb, output, seqa_header = [code,f'structureX:{code}:FIRST:A:LAST:A::::'], 
-                         seqb_header = [f'{code}_fill', 'sequence:::::::::'])
-    
+                        seqb_header = [f'{code}_fill', 'sequence:::::::::'])
+
 
 def fill_loops(structure_dir, ali_file, pdb_code):
+    # ali file needs 
+    # >P1;1abc
+    # structureX:>P1;6yhr_fill:FIRST:A:LAST:A::::
+    # >P1;1abc_fill
+    # for the two seqs assuming pdb code is 1abc
+
     log.verbose()
     env = Environ()
 
