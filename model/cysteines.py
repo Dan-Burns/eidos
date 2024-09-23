@@ -13,7 +13,8 @@ for sulfur_pair in sulfurs_to_bond:
     bond_force.addBond(sulfur_pair[0], sulfur_pair[1], bond_length, force_constant)
 system.addForce(bond_force)
 '''
-
+# TODO need simple functions to loop through topology iterables and return things based on indices, resnames, and object type
+# These need to be simplified and offer a cutoff to consider for forming disulfide bonds.
 
 def find_partner_cysteines(model):
     '''
