@@ -178,7 +178,7 @@ def remove_carboxy_hydrogens(PET_molecule):
     clean_mol = AllChem.AddHs(clean_mol)
     return clean_mol
 
-
+############################## Functions to explore setting up grid points for RESP fitting ###############################
 def center_molecule(u):
     '''
     Parameters
@@ -373,4 +373,6 @@ def generate_grid_points(u, table, n_points=50, extension=1.4, random=False):
     fixed_points = remove_points_within_vdw(u, points, table, extension)
     
     return fixed_points
+
+    ######################################### End grid point section #################################################
 
