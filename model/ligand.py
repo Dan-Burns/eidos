@@ -133,9 +133,11 @@ def make_PET_polymer_smiles(n_units, end='ethylene_glycol'):
             addition = linker+internal
             polymer+=addition
         if end == 'ethylene_glycol':
-            return polymer+=linker+internal+linker
+            polymer+=linker+internal+linker
+            return polymer
         else:
-            return polymer+=linker+r_term
+            polymer+=linker+r_term
+            return polymer
 
 def find_carboxy_hydrogens(molecule):
     carboxy_termini_hydrogens = []
