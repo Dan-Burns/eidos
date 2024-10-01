@@ -131,7 +131,7 @@ def make_disulfide_bonds(model, SGs_to_bond=None):
     topology=model.topology
     if SGs_to_bond is not None:
         for pair in SGs_to_bond:
-        topology.addBond(*pair)
+            topology.addBond(*pair)
     else:
         SGs_to_bond = get_cysteine_SG_atoms(topology, cysteine_pairs_to_bond)
         for pair in SGs_to_bond:
