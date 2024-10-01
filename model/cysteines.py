@@ -115,22 +115,31 @@ def get_cysteine_SG_atoms(topology,cys_pairs=None):
 def get_pairs_to_bond(bonded, pairs):
     return [pair for pair in pairs if pair not in bonded]
 
-def make_disulfide_bonds(model, SGs_to_bond=None):
+def make_disulfide_bonds(model, Cs_to_bond=None):
     '''
     Parameters
     ----------
     model : openmm.app.modeller
     '''
     topology = model.topology
-    cys_pairs, SG_pairs = find_partner_cysteines(model)
-    bonded_sulfurs, bonded_cysteines = get_bonded_sulfurs(topology)
-    sulfur_pairs_to_bond = get_pairs_to_bond(bonded_sulfurs, SG_pairs)
-    cysteine_pairs_to_bond = get_pairs_to_bond(bonded_cysteines, cys_pairs)
-    HGs_to_remove = get_cysteine_HG_indices(topology,cysteine_pairs_to_bond)
-    model.delete(HGs_to_remove)
+    if Cs_to_bond is None:
+        cys_pairs, SG_pairs = find_partner_cysteines(model)
+        bonded_sulfurs, bonded_cysteines = get_bonded_sulfurs(topology)
+        sulfur_pairs_to_bond = get_pairs_to_bond(bonded_sulfurs, SG_pairs)
+        cysteine_pairs_to_bond = get_pairs_to_bond(bonded_cysteines, cys_pairs)
+        HGs_to_remove = get_cysteine_HG_indices(topology,cysteine_pairs_to_bond)
+        model.delete(HGs_to_remove)
+    else:
+        HGs_to_remove = get_cysteine_HG_indices(topology,Cs_to_bond)
+        model.delete(HGs_to_remove)
+        
+        
+   
     topology=model.topology
-    if SGs_to_bond is not None:
-        for pair in SGs_to_bond:
+   
+    if Cs_to_bond is not None:
+        SG_pairs = get_cysteine_SG_atoms(topology,Cs_to_bond)
+        for pair in SG_pairs:
             topology.addBond(*pair)
     else:
         SGs_to_bond = get_cysteine_SG_atoms(topology, cysteine_pairs_to_bond)
