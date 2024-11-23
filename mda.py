@@ -1,6 +1,6 @@
 import MDAnalysis as mda
 from MDAnalysis.lib.util import convert_aa_code as conv_aa
-from MDAnalysis.analysis import align
+from MDAnalysis.analysis import align, rms
 
 
 # TODO full script or class for post processing that will spit out all the 
@@ -20,6 +20,48 @@ def write_trajectory(u, selection='protein', output_file='saved_traj.xtc', start
         for frame in u.trajectory[start:stop:step]:
             w.write(sel)
     '''
+def get_residue_names(u):
+    return list(set(u.residues.resnames))
+
+def align_traj(u, ref=None, selection='name CA', output_file=None):
+    '''
+    Align a trajectory to a reference based on selection.
+
+    u : mda.Universe
+    
+    ref : mda.Universe
+        The reference universe. If None, align to first frame of trajectory
+
+    selection : str
+        MDAnalysis selection of atoms to base the alignment on.
+
+    output_file : str
+        Path to output trajectory if saving to file.
+
+    Returns
+    -------
+    Modifies the universe in place. If output_file is provided, writes the aligned
+    trajectory to output_file.
+    '''
+    if ref == None:
+        ref = u
+    if output_file is not None:
+        align.AlignTraj(u, ref, select=selection, filename=output_file).run()
+    else:
+        align.AlignTraj(u, ref, select=selection)
+
+def get_rmsd(u, ref=None, selection='name CA'):
+    '''
+    Only basic rmsd call. 
+
+    #TODO add more functionality
+
+    Returns
+    -------
+    Nx3 np.ndarray [[frame, time (ps), RMSD (A)]]
+    '''
+
+    return rms.RMSD(u, reference=ref, select=selection,).run() # parallelizable
 
 def get_sequence(u,print_seq=True,by_chain=False):
     '''
@@ -40,6 +82,8 @@ def get_sequence(u,print_seq=True,by_chain=False):
             return resis_by_chain
         else:
             return resis
+        
+
         
 def process_traj(structure, trajectory,
                  sel='not (resname HOH or resname SOL or resname Na or resname Cl or resname WAT or resname Na+ or resname Cl-)',
