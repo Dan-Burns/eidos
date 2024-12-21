@@ -48,7 +48,7 @@ def align_traj(u, ref=None, selection='name CA', output_file=None):
     if output_file is not None:
         align.AlignTraj(u, ref, select=selection, filename=output_file).run()
     else:
-        align.AlignTraj(u, ref, select=selection)
+        align.AlignTraj(u, ref, select=selection, in_memory=True).run()
 
 def get_rmsd(u, ref=None, selection='name CA'):
     '''
@@ -61,7 +61,9 @@ def get_rmsd(u, ref=None, selection='name CA'):
     Nx3 np.ndarray [[frame, time (ps), RMSD (A)]]
     '''
 
-    return rms.RMSD(u, reference=ref, select=selection,).run() # parallelizable
+    output = rms.RMSD(u, reference=ref, select=selection,).run() # parallelizable
+
+    return output.rmsd
 
 def get_sequence(u,print_seq=True,by_chain=False):
     '''

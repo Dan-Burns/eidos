@@ -216,7 +216,7 @@ def make_aln_file(pdb_path, output):
     '''
     # https://salilab.org/modeller/wiki/Missing_residues
 
-    code = re.split('\.|/',pdb_path)[-2]
+    code = re.split(r'\.|/',pdb_path)[-2]
     e = Environ()
     m = Model(e, file=pdb_path)
     aln = Alignment(e)
@@ -233,7 +233,7 @@ def get_modeller_alignment(pdb_path, seq_file, output):
     seq_file : string   
         Path to file from make_aln_file.
     '''
-    code = re.split('\.|/',pdb_path)[-2]
+    code = re.split(r'\.|/',pdb_path)[-2]
 
     for record in SeqIO.parse(pdb_path, "pdb-seqres"):
         print("Record id %s, chain %s" % (record.id, record.annotations["chain"]))
@@ -279,6 +279,9 @@ def fill_loops(structure_dir, ali_file, pdb_code):
 
     a = LoopModel(env, alnfile = ali_file,
                 knowns = pdb_code, sequence = f'{pdb_code}_fill')
+    # might have to go in to the ali_file and adjust the chain ID
+    # or remake the aln file
+    # this is sensitive to the way the pdb is setup - multiple chains complicates things
     a.starting_model= 1
     a.ending_model  = 1
 

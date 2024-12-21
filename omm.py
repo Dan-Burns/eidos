@@ -276,6 +276,7 @@ class OMMSetup:
                  pressure=1*bar,
                  box_shape='cube',
                  padding=0.6*nanometer,
+                 name='system'
                  ):
         self.structures = structures
         self.structures_to_parameterize = structures_to_parameterize
@@ -286,6 +287,7 @@ class OMMSetup:
         self.pressure = pressure
         self.box_shape = box_shape
         self.padding = padding
+        self.name = name
         # add padding or box vectors, ions, concentration, water model
 
     '''
@@ -348,15 +350,12 @@ class OMMSetup:
         self.simulation = simulation
 
 
-    def save(self, output, name='system'):
+    def save(self, output):
         '''
         save gromacs files and openmm system files
 
         output : str
             Path to output. Directory will be created if none exists.
-
-        name : str
-            Optional name to prefix to your saved files.
         '''
         # create folders within the output directory 
         os.makedirs(f'{output}',exist_ok=True)
@@ -389,8 +388,8 @@ class OMMSetup:
         pmd_structure = parmed.openmm.load_topology(self.simulation.topology, system=parmed_system, xyz=positions)
 
         os.makedirs(f'{output}/gmx/',exist_ok=True)
-        pmd_structure.save(f"{output}/gmx/{name}_gmx.top", overwrite=True)
-        pmd_structure.save(f"{output}/gmx/{name}_gmx.gro", overwrite=True)
+        pmd_structure.save(f"{output}/gmx/{self.name}_gmx.top", overwrite=True)
+        pmd_structure.save(f"{output}/gmx/{self.name}_gmx.gro", overwrite=True)
 
         
         # write an energy minimization .mdp file to use with gmx grompp
@@ -405,9 +404,9 @@ class OMMSetup:
             command = [
             'gmx', 'grompp',
             '-f', f'{output}/gmx/em.mdp',
-            '-c', f"{output}/gmx/{name}_gmx.gro",
-            '-p', f"{output}/gmx/{name}_gmx.top",
-            '-o', f"{output}/gmx/{name}_em_gmx.tpr"
+            '-c', f"{output}/gmx/{self.name}_gmx.gro",
+            '-p', f"{output}/gmx/{self.name}_gmx.top",
+            '-o', f"{output}/gmx/{self.name}_em_gmx.tpr"
             ]
 
             # Execute the command

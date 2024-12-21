@@ -112,9 +112,9 @@ def make_PET_polymer_smiles(n_units, end='ethylene_glycol'):
 
     '''
 
-    monomer = "OC(=O)C1=CC=C(C=C1)C(=O)O"
-    l_term = "OC(=O)C1=CC=C(C=C1)C(=O)"
-    r_term = "C(=O)C1=CC=C(C=C1)C(O)=O"
+    monomer = "[O-]C(=O)C1=CC=C(C=C1)C(=O)O"
+    l_term = "[O-]C(=O)C1=CC=C(C=C1)C(=O)"
+    r_term = "C(=O)C1=CC=C(C=C1)C(O)=[O-]"
     internal = "C(=O)C1=CC=C(C=C1)C(=O)"
     linker = "OCCO"
     if n_units == 1:
