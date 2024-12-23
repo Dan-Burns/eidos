@@ -1,5 +1,23 @@
 import pandas as pd
 from MDAnalysis.lib.util import convert_aa_code
+from Bio import SeqIO
+
+def extract_fasta(input_fasta, resid_range, output_fasta):
+    '''
+    Take a fasta and provide a resid_range tuple to write a new fasta for.
+    
+
+    '''
+    with open(input_fasta, "r") as infile:
+        for record in SeqIO.parse(infile, "fasta"):
+            # Extract the sequence range
+            start, end = resid_range
+            sub_seq = record.seq[start - 1:end]  # Convert 1-based to 0-based indexing
+
+            # Write the new sequence to the output FASTA
+            with open(output_fasta, "w") as outfile:
+                outfile.write(f">{record.id}_{start}_{end}\n")
+                outfile.write(str(sub_seq) + "\n")
 
 def parse_contacts_to_dict(contact_file):
     '''
