@@ -1,4 +1,5 @@
 import pandas as pd
+from MDAnalysis.lib.util import convert_aa_code
 
 def parse_contacts_to_dict(contact_file):
     '''
@@ -57,7 +58,7 @@ def contact_dict_to_dataframe(contact_dict, resid_range=None, keep_chain=None):
     Returns
     -------
     pd.DataFrame
-    
+
     Can export to_csv(index=False) to use as a chai-1 restraint file.
     https://github.com/chaidiscovery/chai-lab/tree/main/examples/restraints
     '''
