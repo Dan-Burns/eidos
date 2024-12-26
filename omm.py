@@ -7,6 +7,7 @@ import MDAnalysis as mda
 from MDAnalysis.transformations.rotate import rotateby
 import nglview as nv
 import numpy as np
+from scipy.spatial import cKDTree
 from pdbfixer import PDBFixer
 import os
 import subprocess
@@ -53,6 +54,78 @@ def omm_to_mda(topology,positions):
         sel.atoms.chainIDs = f'{seg.segid}'
  
     return u
+
+def open_system(system_file):
+    with open(system_file, 'r') as file:
+        xml = file.read()
+    system = XmlSerializer.deserialize(xml)
+    return system
+
+def save_sim_files(system, output, name="system"):
+    '''
+    save gromacs files and openmm system files
+
+    output : str
+        Path to output. Directory will be created if none exists.
+    '''
+    # create folders within the output directory 
+    os.makedirs(f'{output}',exist_ok=True)
+    directories = ['system','trajectories','data','structures','checkpoints',
+                    'gmx']
+    for directory in directories:
+        os.makedirs(f'{output}/{directory}', exist_ok=True)
+
+
+    # save the system and minimized structure
+    topology, positions = top_pos_from_sim(simulation)
+    with open(f'{output}/system/{name}_system.xml', 'w') as outfile:
+        outfile.write(XmlSerializer.serialize(system))
+    #os.chmod(file, stat.S_IREAD) #set to read only to prevent deletion
+    with open(f'{output}/structures/{name}_minimized.pdb', 'w') as f:
+        PDBFile.writeFile(topology, positions, f)
+    
+    # create a .json file with the simulation's details to be used for 
+    # sim_info = get_sim_info(self.simulation)
+    # sim_info['forcefields'] = self.forcefields
+    # sim_info['box_shape'] = self.box_shape
+    # sim_info['padding'] = self.padding
+    #sim_info['PME'] = True/False
+    
+    # with open(f'{output}/system/{name}_simulation_info.json','w') as h:
+    #     json.dump(sim_info, h)
+
+    ##### Save a gromacs topology for future trjconv use - Use a no-constraints version of system to avoid parmed error
+    parmed_system = forcefield.createSystem(simulation.topology, nonbondedMethod=PME,nonbondedCutoff=1*nanometer, rigidWater=False)
+    pmd_structure = parmed.openmm.load_topology(simulation.topology, system=parmed_system, xyz=positions)
+
+    os.makedirs(f'{output}/gmx/',exist_ok=True)
+    pmd_structure.save(f"{output}/gmx/{name}_gmx.top", overwrite=True)
+    pmd_structure.save(f"{output}/gmx/{name}_gmx.gro", overwrite=True)
+
+    
+    # write an energy minimization .mdp file to use with gmx grompp
+    from .files.text import em_mdp
+    with open(f'{output}/gmx/em.mdp','w') as w:
+        w.write(em_mdp)
+    # Check to see if gmx is available
+    command_path = shutil.which('gmx')
+    # write a .tpr file that can be used for things like trjconv
+    # TODO move to gmx.py
+    if command_path is not None:
+        command = [
+        'gmx', 'grompp',
+        '-f', f'{output}/gmx/em.mdp',
+        '-c', f"{output}/gmx/{name}_gmx.gro",
+        '-p', f"{output}/gmx/{name}_gmx.top",
+        '-o', f"{output}/gmx/{name}_em_gmx.tpr"
+        ]
+
+        # Execute the command
+        result = subprocess.run(command, capture_output=True, text=True)
+
+        # Print the output and error (if any)
+        print("Output:\n", result.stdout)
+        print("Error:\n", result.stderr)
 
 def top_pos_from_sim(simulation):
     state = simulation.context.getState(getPositions=True)
