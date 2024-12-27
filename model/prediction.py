@@ -70,8 +70,8 @@ def contact_dict_to_dataframe(contact_dict, resid_range=None, keep_chain=None):
         minimum and maximum residue_id to include.
         e.g. only include residues 10 to 100 == (10, 100)
 
-    keep_chain : str
-        A chain ID if you only want to include results from a single chain
+    keep_chain : list
+        chain IDs to include
     
     Returns
     -------
@@ -103,7 +103,7 @@ def contact_dict_to_dataframe(contact_dict, resid_range=None, keep_chain=None):
 
         # Filter based on chain
         if keep_chain is not None:
-            if not (chA == keep_chain and chB == keep_chain):
+            if not (chA in keep_chain and chB in keep_chain):
                 continue
 
        
