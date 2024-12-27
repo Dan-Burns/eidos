@@ -423,7 +423,7 @@ class OMMSetup:
         self.simulation = simulation
 
 
-    def save(self, output):
+    def save(self, output,):
         '''
         save gromacs files and openmm system files
 
@@ -440,10 +440,10 @@ class OMMSetup:
 
         # save the system and minimized structure
         topology, positions = top_pos_from_sim(self.simulation)
-        with open(f'{output}/system/{name}_system.xml', 'w') as outfile:
+        with open(f'{output}/system/{self.name}_system.xml', 'w') as outfile:
             outfile.write(XmlSerializer.serialize(self.system))
         #os.chmod(file, stat.S_IREAD) #set to read only to prevent deletion
-        with open(f'{output}/structures/{name}_minimized.pdb', 'w') as f:
+        with open(f'{output}/structures/{self.name}_minimized.pdb', 'w') as f:
             PDBFile.writeFile(topology, positions, f)
         
         # create a .json file with the simulation's details to be used for 
