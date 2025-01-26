@@ -61,7 +61,7 @@ def open_system(system_file):
     system = XmlSerializer.deserialize(xml)
     return system
 
-def save_sim_files(system, output, name="system"):
+def save_sim_files(simulation, system, forcefield, output, name="system"):
     '''
     save gromacs files and openmm system files
 
